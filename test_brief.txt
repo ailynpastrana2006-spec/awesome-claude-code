@@ -1,0 +1,2 @@
+Landing pages under test: the current page (control_hero_v1) versus the new hero design (new_hero_v2).
+Conversion: a visitor who completes a purchase (Completed_Purchase = Yes) after seeing their assigned landing page; adding to cart alone does not count.
