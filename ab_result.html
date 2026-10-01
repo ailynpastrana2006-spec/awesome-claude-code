@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A/B Test Result</title>
+<style>
+:root{
+  color-scheme:light;
+  --surface-1:#fcfcfb; --surface-2:#f0efec;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#75746f;
+  --grid:#e4e3df; --axis:#a9a8a2;
+  --series-1:#2a78d6; --series-1-hover:#256abf; --on-series:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --surface-1:#1a1a19; --surface-2:#262624;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9a998f;
+    --grid:#33332f; --axis:#5c5b55;
+    --series-1:#3987e5; --series-1-hover:#5598e7; --on-series:#ffffff;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface-1:#1a1a19; --surface-2:#262624;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9a998f;
+  --grid:#33332f; --axis:#5c5b55;
+  --series-1:#3987e5; --series-1-hover:#5598e7; --on-series:#ffffff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-1);color:var(--text-primary);
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 16px 48px}
+h1{font-size:20px;margin:0 0 4px;font-weight:600}
+.sub{color:var(--text-secondary);margin:0 0 24px}
+.chart{position:relative}
+svg{display:block;width:100%;height:auto;overflow:visible}
+.chart{padding-top:8px}
+.tick text,.cat{fill:var(--text-secondary);font-size:13px}
+.cat.sub2{fill:var(--text-muted);font-size:12px}
+.tick line{stroke:var(--grid)}
+.baseline{stroke:var(--axis)}
+.bar{fill:var(--series-1);cursor:default;outline:none}
+.hit:hover .bar,.hit:focus .bar{fill:var(--series-1-hover)}
+.hit:focus-visible .bar{stroke:var(--text-primary);stroke-width:2}
+.inbar{fill:var(--on-series);font-size:13px;font-weight:600}
+.val{fill:var(--text-primary);font-size:14px;font-weight:600}
+.tip{position:absolute;pointer-events:none;background:var(--surface-2);color:var(--text-primary);
+  border:1px solid var(--grid);border-radius:6px;padding:8px 10px;font-size:13px;
+  box-shadow:0 2px 8px rgba(0,0,0,.15);opacity:0;transition:opacity .1s;white-space:nowrap}
+.tip strong{display:block;font-size:15px}
+.tip span{color:var(--text-secondary)}
+.note{color:var(--text-secondary);font-size:13px;margin-top:20px}
+details{margin-top:16px;font-size:14px}
+summary{cursor:pointer;color:var(--text-secondary)}
+table{border-collapse:collapse;margin-top:8px;width:100%}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--text-secondary);font-weight:500}
+</style>
+</head>
+<body>
+<main>
+  <h1>Conversion rate by test group</h1>
+  <p class="sub">Share of visitors who completed a purchase, 2–29 March 2026. Bar labels show the number of visitors in each group.</p>
+  <div class="chart" id="chart">
+    <svg id="svg" viewBox="0 0 720 190" role="img" aria-labelledby="svgdesc">
+      <desc id="svgdesc"></desc>
+    </svg>
+    <div class="tip" id="tip" role="status"></div>
+  </div>
+  <p class="note" id="note"></p>
+  <details>
+    <summary>Show as table</summary>
+    <table><thead><tr><th>Group</th><th>Visitors</th><th>Purchases</th><th>Conversion rate</th></tr></thead>
+    <tbody id="tbody"></tbody></table>
+  </details>
+</main>
+<script>
+const DATA = [{"group": "A", "label": "Group A \u00b7 old page (control_hero_v1)", "visitors": 3976, "purchases": 281, "rate": 7.07, "short": "Group A", "page": "Old page \u00b7 control_hero_v1", "pageShort": "Old page"}, {"group": "B", "label": "Group B \u00b7 new page (new_hero_v2)", "visitors": 4024, "purchases": 397, "rate": 9.87, "short": "Group B", "page": "New page \u00b7 new_hero_v2", "pageShort": "New page"}];
+const NS = "http://www.w3.org/2000/svg";
+const fmt = n => n.toLocaleString("en-US");
+const pct = n => n.toFixed(2) + "%";
+const svg = document.getElementById("svg"), tip = document.getElementById("tip");
+const chartEl = document.getElementById("chart");
+const T = 16, band = 64, barH = 24, max = 10;
+const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+
+DATA.forEach(d => {
+  const tr = document.createElement("tr");
+  [d.label, fmt(d.visitors), fmt(d.purchases), pct(d.rate)].forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+  document.getElementById("tbody").appendChild(tr);
+});
+
+function render() {
+  const W = Math.max(300, chartEl.clientWidth);
+  const narrow = W < 520, L = narrow ? 92 : 190, R = 60;
+  const H = T + band * DATA.length + 30;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.querySelectorAll(":scope > :not(desc)").forEach(n => n.remove());
+  const x = v => L + (v / max) * (W - L - R);
+  const axisY = T + band * DATA.length;
+  for (let t = 0; t <= max; t += narrow ? 5 : 2) {
+    const g = el("g", { class: "tick" });
+    el("line", { x1: x(t), x2: x(t), y1: T, y2: axisY }, g);
+    el("text", { x: x(t), y: axisY + 18, "text-anchor": "middle" }, g).textContent = t + "%";
+  }
+  el("line", { class: "baseline", x1: L, x2: L, y1: T, y2: axisY });
+
+  DATA.forEach((d, i) => {
+    const cy = T + band * i + band / 2, y = cy - barH / 2, w = x(d.rate) - L, r = 4;
+    const cat = el("text", { class: "cat", x: L - 10, y: cy - 3, "text-anchor": "end" });
+    cat.textContent = d.short;
+    const cat2 = el("text", { class: "cat sub2", x: L - 10, y: cy + 13, "text-anchor": "end" });
+    cat2.textContent = narrow ? d.pageShort : d.page;
+    const g = el("g", { class: "hit", tabindex: "0", role: "img" });
+    g.setAttribute("aria-label", `${d.label}: ${pct(d.rate)} conversion, ${fmt(d.visitors)} visitors, ${fmt(d.purchases)} purchases`);
+    el("rect", { x: L, y: T + band * i, width: W - L, height: band, fill: "transparent" }, g);
+    // square at the baseline, 4px rounded at the data end
+    el("path", { class: "bar", d: `M${L},${y} H${L + w - r} Q${L + w},${y} ${L + w},${y + r} V${y + barH - r} Q${L + w},${y + barH} ${L + w - r},${y + barH} H${L} Z` }, g);
+    el("text", { class: "inbar", x: L + 8, y: cy + 4.5 }, g).textContent = fmt(d.visitors) + " visitors";
+    el("text", { class: "val", x: L + w + 8, y: cy + 5 }, g).textContent = pct(d.rate);
+    const show = ev => {
+      tip.replaceChildren();
+      const s = document.createElement("strong"); s.textContent = pct(d.rate) + " conversion";
+      const a = document.createElement("span"); a.textContent = d.label;
+      const b = document.createElement("div"); b.textContent = `${fmt(d.purchases)} purchases from ${fmt(d.visitors)} visitors`;
+      tip.append(s, a, b);
+      let left = ev && ev.clientX ? ev.clientX - chartEl.getBoundingClientRect().left + 12 : L + w;
+      tip.style.left = Math.max(0, Math.min(left, W - tip.offsetWidth - 4)) + "px";
+      // first bar: tooltip above it; later bars: below, so it never covers another bar
+      tip.style.top = (i === 0 ? y - tip.offsetHeight - 8 : y + barH + 8) + "px";
+      tip.style.opacity = 1;
+    };
+    const hide = () => tip.style.opacity = 0;
+    g.addEventListener("pointermove", show); g.addEventListener("pointerleave", hide);
+    g.addEventListener("focus", () => show()); g.addEventListener("blur", hide);
+  });
+}
+render();
+new ResizeObserver(render).observe(chartEl);
+
+const [A, B] = DATA, diff = B.rate - A.rate;
+document.getElementById("svgdesc").textContent = `Bar chart. ${A.label}: ${pct(A.rate)} of ${fmt(A.visitors)} visitors. ${B.label}: ${pct(B.rate)} of ${fmt(B.visitors)} visitors.`;
+document.getElementById("note").textContent = `Group B converted ${diff.toFixed(2)} percentage points higher than group A, about ${(diff / A.rate * 100).toFixed(1)}% more. Source: ab_test_clean.csv (8,000 unique visitors).`;
+</script>
+</body>
+</html>
