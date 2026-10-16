@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wait Times by Department</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #77766f;
+    --grid: #e4e3df;
+    --series-1: #2a78d6;
+    --on-series: #ffffff;
+    --tip-bg: #0b0b0b;
+    --tip-fg: #fcfcfb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #9a998f;
+      --grid: #33332f;
+      --series-1: #3987e5;
+      --on-series: #0b0b0b;
+      --tip-bg: #f0efec;
+      --tip-fg: #1a1a19;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a998f;
+    --grid: #33332f;
+    --series-1: #3987e5;
+    --on-series: #0b0b0b;
+    --tip-bg: #f0efec;
+    --tip-fg: #1a1a19;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-1); color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 0 0 24px; }
+  .chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .label { fill: var(--text-primary); font-size: 13px; }
+  .value { fill: var(--text-primary); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .count { fill: var(--on-series); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .count.outside { fill: var(--text-secondary); }
+  .axis { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .bar { fill: var(--series-1); }
+  .row:hover .bar, .row:focus .bar { opacity: .85; }
+  .row { outline: none; cursor: default; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--tip-bg); color: var(--tip-fg); border-radius: 6px;
+    padding: 8px 10px; font-size: 12px; line-height: 1.4; white-space: nowrap;
+  }
+  .note { color: var(--text-secondary); font-size: 12px; margin-top: 16px; }
+  details { margin-top: 20px; }
+  summary { cursor: pointer; color: var(--text-secondary); }
+  table { border-collapse: collapse; margin-top: 10px; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  th:not(:first-child), td:not(:first-child) { text-align: right; }
+  th { color: var(--text-secondary); font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mean wait time by department</h1>
+  <p class="sub">Minutes, longest first. The number on each bar is how many visits the average rests on.</p>
+  <div class="chart" id="chart">
+    <svg id="svg" role="img" aria-labelledby="svg-title"><title id="svg-title">Horizontal bar chart of mean wait time in minutes by department. Urgent Care is longest at 46.6 minutes.</title></svg>
+    <div class="tip" id="tip"></div>
+  </div>
+  <p class="note">Source: clinic_visits_clean.csv (11,000 visits). Department spellings grouped into 7 departments for this chart. Blank wait times and impossible values (−12 and 999 minutes, 30 visits) are excluded.</p>
+  <details>
+    <summary>Show as table</summary>
+    <table id="tbl">
+      <thead><tr><th>Department</th><th>Mean wait (min)</th><th>Visits used</th><th>Total visits</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </details>
+</main>
+<script>
+  const data = [
+    { dept: "Urgent Care",       mean: 46.6, n: 1842, total: 1924 },
+    { dept: "Orthopedics",       mean: 29.9, n: 1253, total: 1319 },
+    { dept: "Cardiology",        mean: 27.5, n: 1122, total: 1175 },
+    { dept: "Dermatology",       mean: 24.9, n: 942,  total: 995  },
+    { dept: "Family Medicine",   mean: 22.6, n: 2850, total: 3003 },
+    { dept: "Pediatrics",        mean: 20.9, n: 1637, total: 1725 },
+    { dept: "Behavioral Health", mean: 17.9, n: 817,  total: 859  }
+  ].sort((a, b) => b.mean - a.mean);
+
+  const fmt = n => n.toLocaleString("en-US");
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("svg");
+  const tip = document.getElementById("tip");
+  const chart = document.getElementById("chart");
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function draw() {
+    while (svg.lastChild && svg.lastChild.tagName !== "title") svg.removeChild(svg.lastChild);
+    const W = Math.max(320, chart.clientWidth);
+    const narrow = W < 520;
+    const labelW = narrow ? 112 : 140, valueW = 44, rowH = 40, barH = 24, top = 4, axisH = 22;
+    const plotW = W - labelW - valueW;
+    const max = 50;
+    const H = top + data.length * rowH + axisH;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const x = v => labelW + (v / max) * plotW;
+
+    for (let t = 0; t <= max; t += 10) {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t), y1: top, y2: top + data.length * rowH }));
+      svg.appendChild(el("text", { class: "axis", x: x(t), y: H - 6, "text-anchor": "middle" }, t === max ? `${t} min` : t));
+    }
+
+    data.forEach((d, i) => {
+      const y = top + i * rowH + (rowH - barH) / 2;
+      const w = x(d.mean) - labelW, r = 4;
+      const g = el("g", { class: "row", tabindex: 0, role: "listitem",
+        "aria-label": `${d.dept}: ${d.mean} minutes mean wait, ${fmt(d.n)} visits` });
+      // hit target spans the whole row
+      g.appendChild(el("rect", { x: 0, y: top + i * rowH, width: W, height: rowH, fill: "transparent" }));
+      g.appendChild(el("text", { class: "label", x: labelW - 10, y: y + barH / 2, "text-anchor": "end", "dominant-baseline": "central" }, d.dept));
+      // square at baseline, 4px rounded data-end
+      g.appendChild(el("path", { class: "bar",
+        d: `M${labelW},${y}H${labelW + w - r}a${r},${r} 0 0 1 ${r},${r}V${y + barH - r}a${r},${r} 0 0 1 -${r},${r}H${labelW}Z` }));
+      const countText = `${fmt(d.n)} visits`;
+      const inside = w > countText.length * 6.6 + 16;
+      g.appendChild(el("text", { class: "count" + (inside ? "" : " outside"),
+        x: inside ? labelW + 8 : labelW + w + 6, y: y + barH / 2, "dominant-baseline": "central" }, countText));
+      g.appendChild(el("text", { class: "value", x: W, y: y + barH / 2, "text-anchor": "end", "dominant-baseline": "central" }, d.mean.toFixed(1)));
+
+      const show = ev => {
+        tip.innerHTML = `<strong>${d.dept}</strong><br>Mean wait: ${d.mean.toFixed(1)} min<br>Visits used: ${fmt(d.n)} of ${fmt(d.total)}`;
+        tip.style.opacity = 1;
+        const rect = chart.getBoundingClientRect();
+        let px = ev && ev.clientX ? ev.clientX - rect.left + 12 : x(d.mean) * rect.width / W;
+        const py = (y + barH + 6) * rect.height / H;
+        px = Math.min(px, rect.width - tip.offsetWidth - 4);
+        tip.style.left = px + "px"; tip.style.top = py + "px";
+      };
+      g.addEventListener("mousemove", show);
+      g.addEventListener("focus", () => show());
+      g.addEventListener("mouseleave", () => tip.style.opacity = 0);
+      g.addEventListener("blur", () => tip.style.opacity = 0);
+      svg.appendChild(g);
+    });
+  }
+
+  const tbody = document.querySelector("#tbl tbody");
+  data.forEach(d => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${d.dept}</td><td>${d.mean.toFixed(1)}</td><td>${fmt(d.n)}</td><td>${fmt(d.total)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  draw();
+  addEventListener("resize", draw);
+</script>
+</body>
+</html>
