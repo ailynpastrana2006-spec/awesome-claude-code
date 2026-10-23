@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listing Prices</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6; --series-1-hover: #1c5cab;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-1-hover: #86b6ef;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-1-hover: #86b6ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 32px 16px 48px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.sub { color: var(--text-secondary); margin: 0 0 20px; }
+figure { margin: 0; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 16px 16px; position: relative; }
+.scroll { overflow-x: auto; }
+svg { display: block; width: 100%; min-width: 600px; height: auto; overflow: visible; }
+.tick text, .axis-title { fill: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.bar { fill: var(--series-1); pointer-events: none; }
+.hit { fill: transparent; cursor: default; outline: none; }
+.hit:hover + .bar, .hit:focus + .bar { fill: var(--series-1-hover); }
+.ref-median { stroke: var(--text-primary); stroke-width: 2; }
+.ref-mean { stroke: var(--text-secondary); stroke-width: 2; stroke-dasharray: 5 4; }
+.ref-label { font-size: 12px; fill: var(--text-primary); }
+.ref-label .k { font-weight: 600; }
+.ref-label.mean { fill: var(--text-secondary); }
+figcaption { color: var(--text-secondary); font-size: 13px; margin-top: 12px; padding: 0 4px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); white-space: nowrap; opacity: 0; transition: opacity .1s; }
+.tip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tip .r { color: var(--text-secondary); }
+details { margin-top: 20px; }
+summary { cursor: pointer; color: var(--text-secondary); font-size: 14px; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; margin-top: 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 12px; border-bottom: 1px solid var(--grid); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-secondary); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Listing prices</h1>
+  <p class="sub" id="sub"></p>
+  <figure>
+    <div class="scroll"><svg id="chart" role="img" aria-labelledby="cap"></svg></div>
+    <div class="tip" id="tip" role="status"></div>
+    <figcaption id="cap"></figcaption>
+  </figure>
+  <details>
+    <summary>Show as a table</summary>
+    <div class="tbl-wrap"><table id="tbl"><thead><tr><th>Price range</th><th>Listings</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+  </details>
+</main>
+<script>
+const D = {"n": 7047, "mean": 497381.01319710515, "median": 495700.0, "min": 106400.0, "max": 969000.0, "lo": 100000, "hi": 975000, "w": 25000, "counts": [2, 2, 16, 22, 40, 83, 120, 172, 242, 299, 321, 379, 445, 476, 502, 485, 553, 496, 451, 399, 360, 292, 237, 168, 140, 107, 84, 58, 37, 22, 13, 11, 4, 7, 2]};
+const fmt = v => "$" + Math.round(v).toLocaleString("en-US");
+const k = v => "$" + Math.round(v / 1000) + "K";
+document.getElementById("sub").textContent =
+  `Number of listings at each asking price, in $25K steps · lowest ${fmt(D.min)}, highest ${fmt(D.max)}`;
+document.getElementById("cap").textContent =
+  `Based on ${D.n.toLocaleString("en-US")} listings from listings_clean.csv. ` +
+  `Median ${fmt(D.median)} (solid line); mean ${fmt(D.mean)} (dashed line).`;
+
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("chart");
+const W = 860, H = 380, m = { t: 44, r: 12, b: 44, l: 48 };
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+const pw = W - m.l - m.r, ph = H - m.t - m.b;
+const x = v => m.l + (v - D.lo) / (D.hi - D.lo) * pw;
+const maxC = Math.max(...D.counts);
+const step = [10, 20, 25, 50, 100, 200, 250, 500].find(s => maxC / s <= 6);
+const yMax = Math.ceil(maxC / step) * step;
+const y = v => m.t + ph - v / yMax * ph;
+const el = (tag, attrs, parent = svg) => {
+  const e = document.createElementNS(NS, tag);
+  for (const a in attrs) e.setAttribute(a, attrs[a]);
+  parent.appendChild(e); return e;
+};
+
+for (let v = 0; v <= yMax; v += step) {
+  const g = el("g", { class: "tick" });
+  if (v > 0) el("line", { class: "grid", x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, g);
+  el("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, g).textContent = v;
+}
+for (let v = 100000; v <= D.hi; v += 100000) {
+  const g = el("g", { class: "tick" });
+  el("text", { x: x(v), y: H - m.b + 18, "text-anchor": "middle" }, g).textContent = k(v);
+}
+el("text", { class: "axis-title", x: m.l + pw / 2, y: H - 6, "text-anchor": "middle" }).textContent = "List price";
+el("text", { class: "axis-title", x: 0, y: m.t - 14, "text-anchor": "start" }).textContent = "Listings";
+
+const tip = document.getElementById("tip");
+const fig = svg.closest("figure");
+const bw = pw / D.counts.length, gap = 2, r = 4;
+const bars = [];
+D.counts.forEach((c, i) => {
+  const a = D.lo + i * D.w, b = a + D.w;
+  const x0 = x(a) + gap / 2, w = bw - gap, top = y(c), base = y(0);
+  const hit = el("rect", { class: "hit", x: x(a), y: m.t, width: bw, height: ph, tabindex: 0,
+    "aria-label": `${k(a)} to ${k(b)}: ${c} listings` });
+  let bar;
+  if (c > 0) {
+    const rr = Math.min(r, base - top, w / 2);
+    bar = el("path", { class: "bar", d:
+      `M${x0},${base}V${top + rr}Q${x0},${top} ${x0 + rr},${top}H${x0 + w - rr}Q${x0 + w},${top} ${x0 + w},${top + rr}V${base}Z` });
+  } else bar = el("g", {});
+  bars.push(bar);
+  const show = () => {
+    const pct = (c / D.n * 100).toFixed(1);
+    tip.innerHTML = `<span class="r">${fmt(a)} – ${fmt(b - 1)}</span><br><b>${c.toLocaleString("en-US")}</b> listings · ${pct}%`;
+    const sr = svg.getBoundingClientRect(), fr = fig.getBoundingClientRect(), s = sr.width / W;
+    // Sit beside the bar (never over the mean/median labels at the top).
+    tip.style.opacity = 1;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const bl = sr.left - fr.left + x0 * s, br = sr.left - fr.left + (x0 + w) * s;
+    let left = br + 8;
+    if (left + tw > fr.width - 4) left = bl - 8 - tw;
+    const plotTop = sr.top - fr.top + (m.t + 4) * s, plotBot = sr.top - fr.top + y(0) * s - th;
+    const want = sr.top - fr.top + top * s - th / 2;
+    tip.style.left = Math.max(4, left) + "px";
+    tip.style.top = Math.max(plotTop, Math.min(plotBot, want)) + "px";
+  };
+  const hide = () => { tip.style.opacity = 0; };
+  hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+  hit.addEventListener("mouseleave", hide); hit.addEventListener("blur", hide);
+  // keep hit rect first so the CSS hover sibling rule colours the bar
+  svg.insertBefore(hit, bar);
+});
+el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: y(0), y2: y(0) });
+
+// Mean and median sit about $1.7K apart, so the lines nearly overlap:
+// label the lower value to the left and the higher one to the right.
+const refs = [
+  { v: D.median, cls: "median", name: "Median" },
+  { v: D.mean, cls: "mean", name: "Mean" },
+].sort((a, b) => a.v - b.v);
+refs.forEach((ref, i) => {
+  el("line", { class: "ref-" + ref.cls, x1: x(ref.v), x2: x(ref.v), y1: m.t - 22, y2: y(0) })
+    .style.pointerEvents = "none";
+  const left = i === 0;
+  const t = el("text", { class: "ref-label " + ref.cls, x: x(ref.v) + (left ? -8 : 8), y: m.t - 12,
+    "text-anchor": left ? "end" : "start" });
+  el("tspan", { class: "k" }, t).textContent = ref.name + " ";
+  el("tspan", {}, t).textContent = fmt(ref.v);
+});
+
+const tb = document.querySelector("#tbl tbody");
+D.counts.forEach((c, i) => {
+  const a = D.lo + i * D.w;
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${fmt(a)} – ${fmt(a + D.w - 1)}</td><td>${c.toLocaleString("en-US")}</td><td>${(c / D.n * 100).toFixed(1)}%</td>`;
+  tb.appendChild(tr);
+});
+</script>
+</body>
+</html>
