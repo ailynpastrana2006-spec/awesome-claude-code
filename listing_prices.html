@@ -62,6 +62,18 @@ table { border-collapse: collapse; margin-top: 8px; font-size: 13px; font-varian
 th, td { padding: 4px 12px; border-bottom: 1px solid var(--grid); text-align: right; }
 th:first-child, td:first-child { text-align: left; }
 th { color: var(--text-secondary); font-weight: 600; }
+h2 { font-size: 18px; font-weight: 600; margin: 40px 0 4px; }
+.nb-chart { display: grid; grid-template-columns: max-content 1fr max-content; column-gap: 12px; row-gap: 8px; align-items: center; }
+.nb-row { display: contents; }
+.nb-name { font-size: 14px; color: var(--text-primary); }
+.nb-track { position: relative; height: 24px; outline: none; }
+.nb-bar { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; display: flex;
+  align-items: center; justify-content: flex-end; padding-right: 8px; min-width: max-content; }
+.nb-bar span { color: #ffffff; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nb-track:hover .nb-bar, .nb-track:focus .nb-bar { background: var(--series-1-hover); }
+.nb-val { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; text-align: right; }
+.nb-head { font-size: 12px; color: var(--text-muted); }
+.nb-chart .base { border-left: 1px solid var(--axis); }
 </style>
 </head>
 <body>
@@ -76,6 +88,17 @@ th { color: var(--text-secondary); font-weight: 600; }
   <details>
     <summary>Show as a table</summary>
     <div class="tbl-wrap"><table id="tbl"><thead><tr><th>Price range</th><th>Listings</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+  </details>
+
+  <h2>Median price by neighborhood</h2>
+  <p class="sub">Highest to lowest · the number on each bar is how many listings it covers</p>
+  <figure>
+    <div class="nb-chart" id="nb-chart" role="group" aria-labelledby="nb-cap"></div>
+    <figcaption id="nb-cap"></figcaption>
+  </figure>
+  <details>
+    <summary>Show as a table</summary>
+    <div class="tbl-wrap"><table id="nb-tbl"><thead><tr><th>Neighborhood</th><th>Median price</th><th>Listings</th></tr></thead><tbody></tbody></table></div>
   </details>
 </main>
 <script>
@@ -178,6 +201,46 @@ D.counts.forEach((c, i) => {
   tr.innerHTML = `<td>${fmt(a)} – ${fmt(a + D.w - 1)}</td><td>${c.toLocaleString("en-US")}</td><td>${(c / D.n * 100).toFixed(1)}%</td>`;
   tb.appendChild(tr);
 });
+</script>
+<script>
+(() => {
+  // Median List_Price per neighborhood from listings_clean.csv. The file's 23
+  // Neighborhood spellings are merged into 6 names for this chart only.
+  const NB = [
+    { name: "Lakeshore", median: 589000, n: 1033 },
+    { name: "Prairie Ridge", median: 522900, n: 1306 },
+    { name: "Old Mill", median: 497600, n: 1187 },
+    { name: "Brickyard", median: 475500, n: 1287 },
+    { name: "Southbank", median: 463800, n: 1113 },
+    { name: "Fairview", median: 429800, n: 1121 },
+  ].sort((a, b) => b.median - a.median);
+  const total = NB.reduce((s, r) => s + r.n, 0);
+  const money = v => "$" + Math.round(v).toLocaleString("en-US");
+  const max = NB[0].median;
+
+  const chart = document.getElementById("nb-chart");
+  chart.insertAdjacentHTML("beforeend",
+    '<span></span><span></span><span class="nb-head">Median price</span>');
+  NB.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "nb-row";
+    row.innerHTML =
+      `<span class="nb-name">${r.name}</span>` +
+      `<div class="nb-track base" tabindex="0" aria-label="${r.name}: median ${money(r.median)}, ${r.n.toLocaleString("en-US")} listings">` +
+      `<div class="nb-bar" style="width:${(r.median / max * 100).toFixed(2)}%"><span>${r.n.toLocaleString("en-US")} listings</span></div></div>` +
+      `<span class="nb-val">${money(r.median)}</span>`;
+    chart.appendChild(row);
+  });
+  document.getElementById("nb-cap").textContent =
+    `Based on ${total.toLocaleString("en-US")} listings from listings_clean.csv. ` +
+    `The file's 23 spellings of Neighborhood (e.g. "Prarie Ridge", "OLD MILL", "Lake Shore") are merged into 6 neighborhoods for this chart; the CSV itself is unchanged.`;
+  const tb = document.querySelector("#nb-tbl tbody");
+  NB.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${r.name}</td><td>${money(r.median)}</td><td>${r.n.toLocaleString("en-US")}</td>`;
+    tb.appendChild(tr);
+  });
+})();
 </script>
 </body>
 </html>
